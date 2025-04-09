@@ -21,8 +21,6 @@ public class WebBrowserController {
 
             if (browser.equalsIgnoreCase("Google Chrome")) {
                 processBuilder = new ProcessBuilder("cmd.exe", "/c", "start chrome " + url);
-            } else if (browser.equalsIgnoreCase("Firefox")) {
-                processBuilder = new ProcessBuilder("cmd.exe", "/c", "start firefox " + url);
             } else if (browser.equalsIgnoreCase("Edge")) {
                 processBuilder = new ProcessBuilder("cmd.exe", "/c", "start msedge " + url);
             } else {
@@ -47,9 +45,6 @@ public class WebBrowserController {
             switch (browser.toLowerCase()) {
                 case "google chrome":
                     processName = "chrome.exe";
-                    break;
-                case "firefox":
-                    processName = "firefox.exe";
                     break;
                 case "edge":
                     processName = "msedge.exe";
@@ -92,9 +87,6 @@ public class WebBrowserController {
         switch (browser.toLowerCase()) {
             case "google chrome":
                 profileDir = new File(userProfile + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default");
-                break;
-            case "firefox":
-                profileDir = new File(userProfile + "\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles");
                 break;
             case "edge":
                 profileDir = new File(userProfile + "\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default");
