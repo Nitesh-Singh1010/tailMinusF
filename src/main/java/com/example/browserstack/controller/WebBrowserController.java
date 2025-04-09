@@ -6,9 +6,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.File;
+
 
 @RestController
 public class WebBrowserController {
@@ -24,16 +24,16 @@ public class WebBrowserController {
             } else if (browser.equalsIgnoreCase("Edge")) {
                 processBuilder = new ProcessBuilder("cmd.exe", "/c", "start msedge " + url);
             } else {
-                return "Unsupported browser: " + browser;
+                return "unsupported browser: " + browser;
             }
 
-            System.out.println("Opening browser " + browser + " with " + url);
+            System.out.println("opening browser " + browser + " with " + url);
             processBuilder.start();
 
-            return "Started browser " + browser + " with URL " + url;
+            return "started browser " + browser + " with URL " + url;
         } catch (IOException e) {
             e.printStackTrace();
-            return "Failed to start browser: " + e.getMessage();
+            return "failed to start browser: " + e.getMessage();
         }
     }
 
@@ -53,15 +53,15 @@ public class WebBrowserController {
                     return "Unsupported browser: " + browser;
             }
 
-            System.out.println("Trying to kill process: " + processName);
+            System.out.println("trying to kill process: " + processName);
 
             ProcessBuilder processBuilder = new ProcessBuilder("cmd.exe", "/c", "taskkill", "/F", "/IM", processName);
             Process process = processBuilder.start();
             int exitCode = process.waitFor();
 
             if (exitCode == 0) {
-                System.out.println("Successfully killed process: " + processName);
-                return "Stopped browser: " + browser;
+                System.out.println("successfully killed process: " + processName);
+                return "stopped browser: " + browser;
             } else {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
                 StringBuilder errorOutput = new StringBuilder();
@@ -70,55 +70,97 @@ public class WebBrowserController {
                     errorOutput.append(line).append("\n");
                 }
                 reader.close();
-                return "Failed to stop browser. Error: " + errorOutput.toString();
+                return "failed to stop browser. error: " + errorOutput.toString();
             }
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "Failed to stop browser: " + e.getMessage();
+            return "failed to stop browser: " + e.getMessage();
         }
     }
 
     @GetMapping("/cleanup")
     public String cleanupBrowser(@RequestParam("browser") String browser) {
-        String userProfile = System.getenv("USERPROFILE");
-        File profileDir;
-
-        switch (browser.toLowerCase()) {
-            case "google chrome":
-                profileDir = new File(userProfile + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default");
-                break;
-            case "edge":
-                profileDir = new File(userProfile + "\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default");
-                break;
-            default:
-                return "Unsupported browser: " + browser;
-        }
-
         try {
-            if (profileDir.exists()) {
-                deleteDirectory(profileDir);
-                return "Cleaned up browser session for: " + browser;
-            } else {
-                return "No session data found for: " + browser;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "Failed to clean up browser: " + e.getMessage();
-        }
-    }
+            String processName;
 
-    public static void deleteDirectory(File dir) throws IOException {
-        if (dir.isDirectory()) {
-            File[] entries = dir.listFiles();
-            if (entries != null) {
-                for (File entry : entries) {
-                    deleteDirectory(entry);
+            switch (browser.toLowerCase()) {
+                case "chrome":
+                    processName = "chrome.exe";
+                    break;
+                case "edge":
+                    processName = "msedge.exe";
+                    break;
+                default:
+                    return "unsupported browser: " + browser;
+            }
+
+            // force killing any background processes of the browser
+            try {
+                System.out.println("ensuring all " + processName + " processes are terminated before cleanup");
+                ProcessBuilder killProcessBuilder = new ProcessBuilder("cmd.exe", "/c", "taskkill", "/F", "/IM",
+                        processName);
+                Process killProcess = killProcessBuilder.start();
+                killProcess.waitFor(); // Wait but don't check exit code (it's OK if there's nothing to kill)
+            } catch (Exception e) {
+                System.out.println("could not terminate processes: " + e.getMessage());
+            }
+
+            // temp directory paths based on browser
+            String userHome = System.getProperty("user.home");
+            String tempPath = "";
+
+            if (browser.equalsIgnoreCase("Google Chrome")) {
+                tempPath = userHome + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cache";
+            } else if (browser.equalsIgnoreCase("Edge")) {
+                tempPath = userHome + "\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Cache";
+            }
+
+            // adding more cleanup paths here
+            String[] cleanupPaths = new String[] { tempPath };
+            if (browser.equalsIgnoreCase("Google Chrome")) {
+                cleanupPaths = new String[] {
+                        userHome + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cache",
+                        userHome + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Code Cache"
+                };
+            } else if (browser.equalsIgnoreCase("Edge")) {
+                cleanupPaths = new String[] {
+                        userHome + "\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Cache",
+                        userHome + "\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Code Cache"
+                };
+            }
+
+            // cleaning up the directories
+            int deletedFiles = 0;
+            for (String path : cleanupPaths) {
+                if (path != null && !path.isEmpty()) {
+                    File tempDir = new File(path);
+                    if (tempDir.exists() && tempDir.isDirectory()) {
+                        System.out.println("cleaning directory: " + path);
+                        File[] cacheFiles = tempDir.listFiles();
+                        if (cacheFiles != null) {
+                            for (File file : cacheFiles) {
+                                try {
+                                    if (file.isFile() && file.delete()) {
+                                        deletedFiles++;
+                                    }
+                                } catch (Exception e) {
+                                    System.out.println(
+                                            "could not delete file: " + file.getName() + " - " + e.getMessage());
+                                }
+                            }
+                        }
+                    } else {
+                        System.out.println("directory does not exist or is not accessible: " + path);
+                    }
                 }
             }
-        }
-        if (!dir.delete()) {
-            throw new IOException("Failed to delete: " + dir.getAbsolutePath());
+
+            return "cleanup completed for " + browser + "deleted this number of files:" + deletedFiles;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "failed to cleanup browser: " + e.getMessage();
         }
     }
 }
